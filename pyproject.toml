@@ -13,4 +13,5 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "pydantic[bcrypt]>=2.11.4",
     "python-jose[cryptography]>=3.4.0",
+    "uvicorn[standard]>=0.34.2",
 ]

@@ -9,7 +9,8 @@ load_dotenv()
 MONGODB_URI = os.getenv("MONGODB_URI")
 
 client = AsyncIOMotorClient(MONGODB_URI)
-db = client.get_default_database()
+
+db = client["medisched_db"]
 
 
 async def connect_to_mongo():

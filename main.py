@@ -1,20 +1,13 @@
 from fastapi import FastAPI
-from database import connect_to_mongo, close_mongo_connection
+from database import connect_to_mongo
+from auth.routes import router as auth_router
 
 app = FastAPI()
 
 
 @app.on_event("startup")
-async def startup_event():
+async def startup():
     await connect_to_mongo()
 
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    await close_mongo_connection()
-
-
-# Include routers here, e.g.
-# from app.routers import user, appointment
-# app.include_router(user.router)
-# app.include_router(appointment.router)
+app.include_router(auth_router, prefix="/auth", tags=["auth"])

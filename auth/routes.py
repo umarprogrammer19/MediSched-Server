@@ -1,35 +1,29 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.security import OAuth2PasswordRequestForm
 from schemas.user import UserCreate, UserLogin, UserResponse
 from models.user import User, UserRole
-from auth.auth_handler import hash_password, verify_password, AuthJWT
+from auth.auth_handler import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    get_current_user,
+    verify_refresh_token,
+    create_email_token,
+    verify_email_token,
+)
 from utils.email_utils import send_verification_email
-from jose import JWTError, jwt
 import os
-from datetime import datetime, timedelta
-from beanie import PydanticObjectId
+from dotenv import load_dotenv
 
-router = APIRouter()
+load_dotenv()
+
+router = APIRouter(prefix="/auth")
 
 JWT_SECRET = os.getenv("JWT_SECRET_KEY")
+if not JWT_SECRET:
+    raise ValueError("JWT_SECRET_KEY not set in environment variables")
 ALGORITHM = "HS256"
-EMAIL_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
-
-
-def create_email_token(email: str):
-    expire = datetime.utcnow() + timedelta(minutes=EMAIL_TOKEN_EXPIRE_MINUTES)
-    to_encode = {"sub": email, "exp": expire}
-    return jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHM)
-
-
-def verify_email_token(token: str):
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            return None
-        return email
-    except JWTError:
-        return None
 
 
 @router.post("/signup", response_model=UserResponse)
@@ -48,8 +42,8 @@ async def signup(user: UserCreate):
         doctor_request_pending=False,
     )
     await new_user.insert()
-    token = create_email_token(user.email)
-    await send_verification_email(user.email, token)
+    token = create_email_token({"sub": user.email})
+    send_verification_email(user.email, token)  # Removed 'await' here
     return UserResponse(
         id=str(new_user.id),
         full_name=new_user.full_name,
@@ -62,29 +56,32 @@ async def signup(user: UserCreate):
 
 @router.get("/verify-email")
 async def verify_email(token: str):
-    email = verify_email_token(token)
-    if email is None:
+    payload = verify_email_token(token)
+    if not payload:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
+    email = payload.get("sub")
     user = await User.find_one(User.email == email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.is_verified:
+        return {"msg": "Email already verified"}
     user.is_verified = True
     await user.save()
     return {"msg": "Email verified successfully"}
 
 
 @router.post("/login")
-async def login(user: UserLogin, Authorize: AuthJWT = Depends()):
-    db_user = await User.find_one(User.email == user.email)
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    db_user = await User.find_one(User.email == form_data.username)
     if not db_user:
         raise HTTPException(status_code=400, detail="Invalid credentials")
-    if not verify_password(user.password, db_user.hashed_password):
+    if not verify_password(form_data.password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     if not db_user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified")
 
-    access_token = Authorize.create_access_token(subject=str(db_user.id))
-    refresh_token = Authorize.create_refresh_token(subject=str(db_user.id))
+    access_token = create_access_token(data={"sub": str(db_user.id)})
+    refresh_token = create_refresh_token(data={"sub": str(db_user.id)})
     response = {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -99,11 +96,7 @@ async def login(user: UserLogin, Authorize: AuthJWT = Depends()):
 
 
 @router.post("/refresh")
-async def refresh(Authorize: AuthJWT = Depends()):
-    try:
-        Authorize.jwt_refresh_token_required()
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="Refresh token missing or invalid")
-    current_user = Authorize.get_jwt_subject()
-    new_access_token = Authorize.create_access_token(subject=current_user)
+async def refresh(refresh_token: str):
+    user_id = await verify_refresh_token(refresh_token)
+    new_access_token = create_access_token(data={"sub": user_id})
     return {"access_token": new_access_token}

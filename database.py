@@ -1,11 +1,9 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
-from app.models.user import User
-from app.models.appointment import Appointment
+from models.user import User
+from models.appointment import Appointment
 
 # Import all your models here
-
-import asyncio
 
 
 class Database:

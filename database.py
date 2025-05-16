@@ -1,26 +1,17 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 from models.user import User
-from models.appointment import Appointment
+import os
+from dotenv import load_dotenv
 
-# Import all your models here
+load_dotenv()
 
+MONGODB_URI = os.getenv("MONGODB_URI")
 
-class Database:
-    client: AsyncIOMotorClient = None
-
-
-db = Database()
+client = AsyncIOMotorClient(MONGODB_URI)
+db = client.get_default_database()
 
 
 async def connect_to_mongo():
-    db.client = AsyncIOMotorClient("mongodb://localhost:27017")
-    await init_beanie(
-        database=db.client.your_database_name,
-        document_models=[User, Appointment],  # add all models here
-    )
+    await init_beanie(database=db, document_models=[User])
     print("Connected to MongoDB")
-
-
-async def close_mongo_connection():
-    db.client.close()

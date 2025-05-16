@@ -1,13 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from schemas.user import UserCreate, UserLogin, UserResponse
+from schemas.user import UserCreate, UserResponse
 from models.user import User, UserRole
 from auth.auth_handler import (
     hash_password,
     verify_password,
     create_access_token,
     create_refresh_token,
-    get_current_user,
     verify_refresh_token,
     create_email_token,
     verify_email_token,
@@ -43,6 +42,7 @@ async def signup(user: UserCreate):
     )
     await new_user.insert()
     token = create_email_token({"sub": user.email})
+    # token = create_email_token({"sub": str(new_user.id)})
     send_verification_email(user.email, token)  # Removed 'await' here
     return UserResponse(
         id=str(new_user.id),
@@ -60,7 +60,9 @@ async def verify_email(token: str):
     if not payload:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     email = payload.get("sub")
+    print("Email from token:", email)
     user = await User.find_one(User.email == email)
+    print("User found:", user)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if user.is_verified:
@@ -77,8 +79,6 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     if not verify_password(form_data.password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
-    if not db_user.is_verified:
-        raise HTTPException(status_code=403, detail="Email not verified")
 
     access_token = create_access_token(data={"sub": str(db_user.id)})
     refresh_token = create_refresh_token(data={"sub": str(db_user.id)})

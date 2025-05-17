@@ -16,4 +16,6 @@ dependencies = [
     "fastapi-mail==1.4.1",
     "pydantic>=2.11.4",
     "yagmail>=0.15.293",
+    "cloudinary>=1.44.0",
+    "stripe>=12.1.0",
 ]

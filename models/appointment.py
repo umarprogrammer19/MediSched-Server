@@ -1,5 +1,5 @@
 from beanie import Document, Link
-from pydantic import BaseModel, Field
+from pydantic import Field
 from typing import Optional
 from enum import Enum
 from datetime import datetime

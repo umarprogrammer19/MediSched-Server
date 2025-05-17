@@ -90,6 +90,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             "full_name": db_user.full_name,
             "email": db_user.email,
             "role": db_user.role,
+            "verification_status": db_user.is_verified
         },
     }
     return response

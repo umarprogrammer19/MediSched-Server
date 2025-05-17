@@ -6,7 +6,7 @@ load_dotenv()
 
 
 def send_verification_email(email: str, token: str):
-    verification_url = f"http://localhost:3000/verify-email?token={token}"
+    verification_url = f"http://127.0.0.1:8000/api/auth/verify-email?token={token}"
     html_body = f"""
     <h1>Verify Your Email</h1>
     <p>Please click the link to verify your email: <a href="{verification_url}">{verification_url}</a></p>

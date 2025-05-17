@@ -175,3 +175,34 @@ async def confirm_appointment(
     send_appointment_update_email(appointment.doctor.email, "You confirmed an appointment", appointment)
 
     return {"msg": "Appointment confirmed successfully"}
+
+@router.put("/{appointment_id}/reject")
+async def reject_appointment(
+    appointment_id: str,
+    current_user: str = Depends(get_current_user)
+):
+    appointment = await Appointment.find_one(Appointment.id == appointment_id, fetch_links=True)
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    doctor = await User.find_one(User.id == current_user)
+    if doctor.role != UserRole.DOCTOR or appointment.doctor.id != doctor.id:
+        raise HTTPException(status_code=403, detail="Not authorized to reject this appointment")
+
+    if appointment.status != AppointmentStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Appointment cannot be rejected")
+
+    appointment.status = AppointmentStatus.REJECTED
+    await appointment.save()
+
+    # Free up the time slot
+    doctor_details = await DoctorDetails.find_one(DoctorDetails.user.id == appointment.doctor.id)
+    for slot in doctor_details.available_time_slots:
+        if slot.day == appointment.time_slot.day and slot.start_time == appointment.time_slot.start_time:
+            slot.is_booked = False
+    await doctor_details.save()
+
+    send_appointment_update_email(appointment.patient.email, "Appointment Rejected", appointment)
+    send_appointment_update_email(appointment.doctor.email, "You rejected an appointment", appointment)
+
+    return {"msg": "Appointment rejected successfully"}

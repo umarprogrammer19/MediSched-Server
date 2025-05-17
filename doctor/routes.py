@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from typing import List
+from schemas.user import UserResponse
 
 load_dotenv()
 
@@ -90,3 +91,11 @@ async def get_doctor_profile(id: str):
         "role": user.role,
         "doctor_details": user.doctor_details.dict(),
     }
+
+
+@router.get("/", response_model=List[UserResponse])
+async def get_all_doctors():
+    doctors = await User.find(User.role == UserRole.DOCTOR, fetch_links=True).to_list()
+    if not doctors:
+        raise HTTPException(status_code=404, detail="No doctors found")
+    return [UserResponse.from_orm(doctor) for doctor in doctors]

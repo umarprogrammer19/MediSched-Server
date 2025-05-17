@@ -11,8 +11,8 @@ class UserRole(str, Enum):
 class UserCreate(BaseModel):
     full_name: str
     email: EmailStr
-    phone_number: constr(min_length=10, max_length=15)  # type: ignore
-    password: constr(min_length=6)  # type: ignore
+    phone_number: constr(min_length=11, max_length=15)  # type: ignore
+    password: constr(min_length=8)  # type: ignore
 
 
 class UserLogin(BaseModel):

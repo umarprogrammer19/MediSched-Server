@@ -13,6 +13,7 @@ load_dotenv()
 
 router = APIRouter(prefix="/doctor")
 
+
 class DoctorApplication(BaseModel):
     father_name: str
     gender: str
@@ -71,3 +72,21 @@ async def apply_for_doctor(
     send_doctor_application_email("uhhfj0345@gmail.com", user.email)
 
     return {"msg": "Application submitted successfully"}
+
+
+@router.get("/{id}")
+async def get_doctor_profile(id: str):
+    user = await User.find_one(
+        User.id == id, User.role == UserRole.DOCTOR, fetch_links=True
+    )
+    if not user or not user.doctor_details:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+
+    return {
+        "id": str(user.id),
+        "full_name": user.full_name,
+        "email": user.email,
+        "phone_number": user.phone_number,
+        "role": user.role,
+        "doctor_details": user.doctor_details.dict(),
+    }

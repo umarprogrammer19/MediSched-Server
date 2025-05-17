@@ -2,7 +2,6 @@ from beanie import Document, Link
 from pydantic import EmailStr
 from enum import Enum
 from typing import Optional
-from models.doctor_details import DoctorDetails
 
 
 class UserRole(str, Enum):
@@ -19,7 +18,7 @@ class User(Document):
     role: UserRole = UserRole.PATIENT
     is_verified: bool = False
     doctor_request_pending: bool = False
-    doctor_details: Optional[Link[DoctorDetails]] = None
+    doctor_details: Optional[Link["DoctorDetails"]] = None
 
     class Settings:
         name = "users"

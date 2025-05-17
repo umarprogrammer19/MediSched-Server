@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from typing import List
 from beanie import Document, Link
-from models.user import User
 
 
 class TimeSlot(BaseModel):
@@ -12,7 +11,7 @@ class TimeSlot(BaseModel):
 
 
 class DoctorDetails(Document):
-    user: Link[User]  # Reference to the User document
+    user: Link["User"]  # Reference to the User document
     father_name: str
     gender: str
     country: str

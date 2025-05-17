@@ -150,3 +150,28 @@ async def reschedule_appointment(
     send_appointment_update_email(appointment.doctor.email, "Appointment Rescheduled by Patient", appointment)
 
     return {"msg": "Appointment rescheduled successfully"}
+
+
+@router.put("/{appointment_id}/confirm")
+async def confirm_appointment(
+    appointment_id: str,
+    current_user: str = Depends(get_current_user)
+):
+    appointment = await Appointment.find_one(Appointment.id == appointment_id, fetch_links=True)
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    doctor = await User.find_one(User.id == current_user)
+    if doctor.role != UserRole.DOCTOR or appointment.doctor.id != doctor.id:
+        raise HTTPException(status_code=403, detail="Not authorized to confirm this appointment")
+
+    if appointment.status != AppointmentStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Appointment cannot be confirmed")
+
+    appointment.status = AppointmentStatus.CONFIRMED
+    await appointment.save()
+
+    send_appointment_update_email(appointment.patient.email, "Appointment Confirmed", appointment)
+    send_appointment_update_email(appointment.doctor.email, "You confirmed an appointment", appointment)
+
+    return {"msg": "Appointment confirmed successfully"}

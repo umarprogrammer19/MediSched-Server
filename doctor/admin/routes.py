@@ -3,7 +3,7 @@ from doctor.doctor_request import router
 from models.user import User, UserRole
 from auth.auth_handler import get_current_user
 
-@router.put("/admin/doctor/{user_id}/approve")
+@router.put("/admin/{user_id}/approve")
 async def approve_doctor(
     user_id: str,
     current_user: str = Depends(get_current_user)

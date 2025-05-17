@@ -13,7 +13,6 @@ load_dotenv()
 
 router = APIRouter(prefix="/doctor")
 
-
 class DoctorApplication(BaseModel):
     father_name: str
     gender: str

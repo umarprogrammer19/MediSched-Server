@@ -1,5 +1,5 @@
 from fastapi import HTTPException, Depends
-from doctor.doctor_request import router
+from doctor.routes import router
 from models.user import User, UserRole
 from auth.auth_handler import get_current_user
 

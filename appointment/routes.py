@@ -104,3 +104,49 @@ async def cancel_appointment(
     send_appointment_update_email(appointment.doctor.email, "Appointment Canceled by Patient", appointment)
 
     return {"msg": "Appointment canceled successfully"}
+
+
+@router.put("/{appointment_id}/reschedule")
+async def reschedule_appointment(
+    appointment_id: str,
+    new_time_slot: TimeSlot,
+    current_user: str = Depends(get_current_user)
+):
+    appointment = await Appointment.find_one(Appointment.id == appointment_id, fetch_links=True)
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    patient = await User.find_one(User.id == current_user)
+    if patient.role != UserRole.PATIENT or appointment.patient.id != patient.id:
+        raise HTTPException(status_code=403, detail="Not authorized to reschedule this appointment")
+
+    if appointment.status not in [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED]:
+        raise HTTPException(status_code=400, detail="Cannot reschedule this appointment")
+
+    doctor_details = await DoctorDetails.find_one(DoctorDetails.user.id == appointment.doctor.id)
+    available_slots = [slot for slot in doctor_details.available_time_slots 
+                       if not slot.is_booked and slot.day == new_time_slot.day 
+                       and slot.start_time == new_time_slot.start_time]
+
+    if not available_slots:
+        raise HTTPException(status_code=400, detail="New time slot not available")
+
+    # Free the old time slot
+    for slot in doctor_details.available_time_slots:
+        if slot.day == appointment.time_slot.day and slot.start_time == appointment.time_slot.start_time:
+            slot.is_booked = False
+
+    # Book the new time slot
+    for slot in doctor_details.available_time_slots:
+        if slot.day == new_time_slot.day and slot.start_time == new_time_slot.start_time:
+            slot.is_booked = True
+
+    appointment.time_slot = new_time_slot
+    appointment.status = AppointmentStatus.PENDING  # Requires doctor confirmation again
+    await appointment.save()
+    await doctor_details.save()
+
+    send_appointment_update_email(appointment.patient.email, "Appointment Rescheduled", appointment)
+    send_appointment_update_email(appointment.doctor.email, "Appointment Rescheduled by Patient", appointment)
+
+    return {"msg": "Appointment rescheduled successfully"}

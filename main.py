@@ -6,8 +6,18 @@ from doctor.routes import router as doctor_router
 from appointment.routes import router as appointment_router
 from user.routes import router as user_router
 from message.routes import router as message_router
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (for development); replace with specific origins in production, e.g., ["http://localhost:3000"]
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
 
 
 @app.on_event("startup")

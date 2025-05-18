@@ -266,6 +266,19 @@ wheels = [
 ]
 
 [[package]]
+name = "environs"
+version = "14.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "marshmallow" },
+    { name = "python-dotenv" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/31/d3/e82bdbb8cc332e751f67a3f668c5d134d57f983497d9f3a59a375b6e8fd8/environs-14.1.1.tar.gz", hash = "sha256:03db7ee2d50ec697b68814cd175a3a05a7c7954804e4e419ca8b570dc5a835cf", size = 32050 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/1c/ab9752f02d32d981d647c05822be9ff93809be8953dacea2da2bec9a9de9/environs-14.1.1-py3-none-any.whl", hash = "sha256:45bc56f1d53bbc59d8dd69bba97377dd88ec28b8229d81cedbd455b21789445b", size = 15566 },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.115.12"
 source = { registry = "https://pypi.org/simple" }
@@ -306,6 +319,19 @@ wheels = [
 [package.optional-dependencies]
 standard = [
     { name = "uvicorn", extra = ["standard"] },
+]
+
+[[package]]
+name = "fastapi-cors"
+version = "0.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "environs" },
+    { name = "fastapi" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/57/42/d7676d35539db3ee9cb4b7edadc6460a2a5063687782429568cf3ff8e560/fastapi-cors-0.0.1.tar.gz", hash = "sha256:7114dd5bbed5203464ba5c5d136b9a1708b5f7fe61bce79b28b6b58831389d5d", size = 3163 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4d/5a/d837c29c87897871eb7622a0b104fdc9b686376bda7979197ad718891575/fastapi_cors-0.0.1-py3-none-any.whl", hash = "sha256:467690f8529d4251936b09493c094adc3f3850f3f0eb9a2c56220ebbf664bdbd", size = 3675 },
 ]
 
 [[package]]
@@ -490,6 +516,15 @@ wheels = [
 ]
 
 [[package]]
+name = "marshmallow"
+version = "4.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/ff/26df5a9f5ac57ccf693a5854916ab47243039d2aa9e0fe5f5a0331e7b74b/marshmallow-4.0.0.tar.gz", hash = "sha256:3b6e80aac299a7935cfb97ed01d1854fb90b5079430969af92118ea1b12a8d55", size = 220507 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d6/26/6cc45d156f44dbe1d5696d9e54042e4dcaf7b946c0b86df6a97d29706f32/marshmallow-4.0.0-py3-none-any.whl", hash = "sha256:e7b0528337e9990fd64950f8a6b3a1baabed09ad17a0dfb844d701151f92d203", size = 48420 },
+]
+
+[[package]]
 name = "mdurl"
 version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -508,6 +543,7 @@ dependencies = [
     { name = "cloudinary" },
     { name = "email-validator" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "fastapi-cors" },
     { name = "fastapi-jwt-auth" },
     { name = "fastapi-mail" },
     { name = "motor" },
@@ -526,6 +562,7 @@ requires-dist = [
     { name = "cloudinary", specifier = ">=1.44.0" },
     { name = "email-validator", specifier = "==2.2.0" },
     { name = "fastapi", extras = ["standard"], specifier = "==0.115.12" },
+    { name = "fastapi-cors", specifier = "==0.0.1" },
     { name = "fastapi-jwt-auth", specifier = ">=0.5.0" },
     { name = "fastapi-mail", specifier = "==1.4.1" },
     { name = "motor", specifier = ">=3.7.1" },

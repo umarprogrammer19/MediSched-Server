@@ -77,8 +77,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     if not verify_password(form_data.password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
-    # if not db_user.is_verified:
-    #     raise HTTPException(status_code=403, detail="Email not verified")
+    if not db_user.is_verified:
+        raise HTTPException(status_code=403, detail="Email not verified")
     
     access_token = create_access_token(data={"sub": str(db_user.id)})
     refresh_token = create_refresh_token(data={"sub": str(db_user.id)})

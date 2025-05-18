@@ -79,9 +79,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
+        # Convert string ID to ObjectId and query the database
+        user = await User.find_one(User.id == ObjectId(user_id))
+        if user is None:
+            raise credentials_exception
+        return user  # Return the user object instead of just the ID
     except JWTError:
         raise credentials_exception
-    return user_id
+    except ValueError as e:  # Handle invalid ObjectId
+        print(e)
+        raise credentials_exception
 
 
 async def get_current_admin(token: str = Depends(oauth2_scheme)):
@@ -106,6 +113,10 @@ async def get_current_admin(token: str = Depends(oauth2_scheme)):
         return user  # Return the user object
     except JWTError:
         raise credentials_exception
+    except ValueError as e:  # Handle invalid ObjectId
+        print(e)
+        raise credentials_exception
+
 
 async def verify_refresh_token(token: str):
     credentials_exception = HTTPException(

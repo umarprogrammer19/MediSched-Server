@@ -7,28 +7,38 @@ import os
 from dotenv import load_dotenv
 from utils.email_utils import send_appointment_update_email
 from models.doctor_details import DoctorDetails
+from bson import ObjectId
 
 load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 router = APIRouter(prefix="/appointment")
 
-
 @router.post("/book")
 async def book_appointment(
     doctor_id: str,
     time_slot: TimeSlot,
     payment_method: str,  # "online" or "live"
-    current_user: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    patient = await User.find_one(User.id == current_user)
-    if patient.role != UserRole.PATIENT:
+    # Debug: Print the received doctor_id and current_user
+    print(f"Received doctor_id: {doctor_id}")
+    print(f"Current user ID: {current_user.id if current_user else 'None'}")
+
+    # Validate doctor_id format
+    if not ObjectId.is_valid(doctor_id):
+        raise HTTPException(status_code=400, detail="Invalid doctor ID format")
+
+    # Check if the user is a patient
+    if current_user.role != UserRole.PATIENT:
         raise HTTPException(
             status_code=403, detail="Only patients can book appointments"
         )
 
-    doctor = await User.find_one(User.id == doctor_id, fetch_links=True)
-    if doctor.role != UserRole.DOCTOR or not doctor.doctor_details:
+    # Find the doctor
+    doctor = await User.find_one(User.id == ObjectId(doctor_id), fetch_links=True)
+    print(f"Doctor query result: {doctor}")
+    if not doctor or doctor.role != UserRole.DOCTOR or not doctor.doctor_details:
         raise HTTPException(status_code=404, detail="Doctor not found")
 
     doctor_details = doctor.doctor_details
@@ -45,7 +55,7 @@ async def book_appointment(
 
     # Create appointment
     appointment = Appointment(
-        patient=patient,
+        patient=current_user,
         doctor=doctor,
         time_slot=time_slot,
         status=AppointmentStatus.PENDING,
@@ -55,11 +65,10 @@ async def book_appointment(
 
     if payment_method == "online":
         stripe.PaymentIntent.create(
-            amount=int(doctor_details.price_per_appointment * 100),  # in cents
+            amount=int(doctor_details.price_per_appointment * 100),
             currency="usd",
             metadata={"appointment_id": str(appointment.id)},
         )
-        # In a real app, return client_secret for frontend to confirm payment
         appointment.payment_status = "pending"
         await appointment.save()
 
@@ -73,7 +82,7 @@ async def book_appointment(
         "msg": "Appointment booked successfully",
         "appointment_id": str(appointment.id),
     }
-
+    
 @router.delete("/{appointment_id}/cancel")
 async def cancel_appointment(
     appointment_id: str,

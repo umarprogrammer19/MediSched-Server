@@ -7,9 +7,11 @@ import cloudinary.uploader
 import os
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from typing import List
+from typing import List,Dict,Any
 from schemas.user import UserResponse
 import json
+from beanie.odm.fields import PydanticObjectId
+from beanie import Link
 from bson import ObjectId
 from bson.errors import InvalidId
 
@@ -105,24 +107,51 @@ async def apply_for_doctor(
 
     return ApplicationResponse(msg="Application submitted successfully")
 
-# Rest of the code remains the same
+def convert_special_types(data):
+    """Recursively convert PydanticObjectId and Link to serializable types."""
+    if isinstance(data, dict):
+        return {k: convert_special_types(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [convert_special_types(item) for item in data]
+    elif isinstance(data, PydanticObjectId):
+        return str(data)
+    elif isinstance(data, Link):
+        # If the Link is resolved, extract the ID; otherwise, return None
+        return str(data.ref.id) if data.ref and hasattr(data.ref, "id") else None
+    return data
+
 @router.get("/{id}")
-async def get_doctor_profile(id: str):
+async def get_doctor_profile(id: str) -> Dict[str, Any]:
+    # Validate and convert the ID to ObjectId
+    if not ObjectId.is_valid(id):
+        raise HTTPException(status_code=400, detail="Invalid doctor ID format")
+
+    # Query the user with the given ID and role
     user = await User.find_one(
-        User.id == id, User.role == UserRole.DOCTOR, fetch_links=True
+        User.id == ObjectId(id),
+        User.role == UserRole.DOCTOR,
+        fetch_links=True
     )
+
+    # Check if the user exists and has doctor_details
     if not user or not user.doctor_details:
         raise HTTPException(status_code=404, detail="Doctor not found")
 
+    # Manually resolve and serialize the doctor_details
+    doctor_details_data = user.doctor_details.dict(by_alias=True, exclude_unset=True) if user.doctor_details else {}
+    
+    # Convert all PydanticObjectId and Link instances to serializable types
+    doctor_details_data = convert_special_types(doctor_details_data)
+
     return {
-        "id": str(user.id),
+        "id": str(user.id),  # Convert top-level ID to string
         "full_name": user.full_name,
         "email": user.email,
         "phone_number": user.phone_number,
         "role": user.role,
-        "doctor_details": user.doctor_details.dict(),
+        "doctor_details": doctor_details_data,
     }
- 
+    
 @router.get("/", response_model=List[UserResponse])
 async def get_all_doctors():
     doctors = await User.find(User.role == UserRole.DOCTOR, fetch_links=True).to_list()

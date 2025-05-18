@@ -27,7 +27,7 @@ async def startup():
 
 app.include_router(auth_router, prefix="/api", tags=["auth"])
 app.include_router(doctor_router, prefix="/api", tags=["doctor"])
-app.include_router(admin_router, prefix="/api", tags=["doctor"])
+app.include_router(admin_router, prefix="/api", tags=["admin"])
 app.include_router(appointment_router, prefix="/api", tags=["appointment"])
 app.include_router(user_router, prefix="/api", tags=["user"])
 app.include_router(message_router, prefix="/api", tags=["message"])

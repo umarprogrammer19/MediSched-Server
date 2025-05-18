@@ -7,13 +7,18 @@ import cloudinary.uploader
 import os
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from typing import List,Dict,Any
+from typing import List, Dict, Any
 from schemas.user import UserResponse
 import json
 from beanie.odm.fields import PydanticObjectId
 from beanie import Link
 from bson import ObjectId
 from bson.errors import InvalidId
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -37,49 +42,55 @@ class ApplicationResponse(BaseModel):
 async def apply_for_doctor(
     application: str = Form(...),
     profile_picture: UploadFile = File(...),
-    current_user: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),  # Corrected type hint to User
 ):
-    # Log the current_user ID for debugging
-    print(f"Current user ID: {current_user}")
+    # Log the current_user for debugging
+    logger.info(f"Current user: {current_user.id if current_user else 'None'}")
 
-    # Convert current_user to ObjectId
+    # Validate current_user
+    if not current_user or not current_user.id:
+        raise HTTPException(status_code=401, detail="Invalid user authentication")
+
+    # Convert current_user.id to ObjectId
     try:
-        user_id = ObjectId(current_user)
+        user_id = ObjectId(current_user.id)
     except InvalidId:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid user ID format"
-        )
+        logger.error(f"Invalid user ID format: {current_user.id}")
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
 
     # Find the user
     user = await User.find_one(User.id == user_id)
     if user is None:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found"
-        )
+        logger.error(f"User not found: {user_id}")
+        raise HTTPException(status_code=404, detail="User not found")
 
     # Check user role and pending request
     if user.role == UserRole.DOCTOR or user.doctor_request_pending:
-        raise HTTPException(
-            status_code=400,
-            detail="Already a doctor or request pending"
-        )
+        logger.warning(f"User {user_id} already a doctor or has a pending request")
+        raise HTTPException(status_code=400, detail="Already a doctor or request pending")
 
     # Parse the application JSON string
-    application_data = json.loads(application)
+    try:
+        application_data = json.loads(application)
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON format in application data")
+        raise HTTPException(status_code=400, detail="Invalid application data format")
 
     # Validate the application data with DoctorApplication
     application_obj = DoctorApplication(**application_data)
 
     # Upload profile picture to Cloudinary
-    cloudinary.config(
-        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-        api_key=os.getenv("CLOUDINARY_API_KEY"),
-        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-    )
-    upload_result = cloudinary.uploader.upload(profile_picture.file)
-    profile_picture_url = upload_result["secure_url"]
+    try:
+        cloudinary.config(
+            cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+            api_key=os.getenv("CLOUDINARY_API_KEY"),
+            api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+        )
+        upload_result = cloudinary.uploader.upload(profile_picture.file)
+        profile_picture_url = upload_result["secure_url"]
+    except Exception as e:
+        logger.error(f"Cloudinary upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to upload profile picture")
 
     # Create DoctorDetails document
     doctor_details = DoctorDetails(
@@ -103,8 +114,14 @@ async def apply_for_doctor(
     await user.save()
 
     # Notify admin
-    send_doctor_application_email("uhhfj0345@gmail.com", user.email)
+    try:
+        send_doctor_application_email("uhhfj0345@gmail.com", user.email)
+    except Exception as e:
+        logger.error(f"Failed to send doctor application email: {str(e)}")
+        # Log the error but don't fail the request
+        pass
 
+    logger.info(f"Doctor application submitted successfully for user: {user_id}")
     return ApplicationResponse(msg="Application submitted successfully")
 
 def convert_special_types(data):

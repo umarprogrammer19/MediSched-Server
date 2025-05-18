@@ -6,6 +6,7 @@ from doctor.routes import router as doctor_router
 from appointment.routes import router as appointment_router
 from user.routes import router as user_router
 from message.routes import router as message_router
+from payment.routes import router as payment_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -31,3 +32,4 @@ app.include_router(admin_router, prefix="/api", tags=["admin"])
 app.include_router(appointment_router, prefix="/api", tags=["appointment"])
 app.include_router(user_router, prefix="/api", tags=["user"])
 app.include_router(message_router, prefix="/api", tags=["message"])
+app.include_router(payment_router, prefix="/api", tags=["payment"])

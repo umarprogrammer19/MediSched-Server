@@ -8,11 +8,85 @@ from dotenv import load_dotenv
 from utils.email_utils import send_appointment_update_email
 from models.doctor_details import DoctorDetails
 from bson import ObjectId
+import logging
 
 load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 router = APIRouter(prefix="/appointment")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/appointment")
+
+@router.get("/current", response_model=list[dict])
+async def get_all_appointments_for_doctor(current_user: User = Depends(get_current_user)):
+    logger.info(f"Fetching appointments for doctor: {current_user.id}")
+    try:
+        # Verify the user is a doctor
+        if current_user.role != UserRole.DOCTOR:
+            raise HTTPException(status_code=403, detail="Only doctors can view their appointments")
+
+        # Fetch appointments with linked documents (doctor and patient)
+        appointments = await Appointment.find(
+            Appointment.doctor.id == ObjectId(current_user.id),  # Compare ObjectId directly
+            fetch_links=True  # Fetch the linked doctor and patient documents
+        ).to_list()
+
+        # Transform appointments for response
+        appointment_list = []
+        for appointment in appointments:
+            appointment_dict = {
+                "appointment_id": str(appointment.id),
+                "doctor_id": str(appointment.doctor.id),
+                "patient_id": str(appointment.patient.id),
+                "time_slot": appointment.time_slot.dict() if hasattr(appointment.time_slot, "dict") else appointment.time_slot,
+                "payment_method": appointment.payment_status,
+                "status": appointment.status.value,
+                "created_at": appointment.created_at,
+            }
+            appointment_list.append(appointment_dict)
+
+        logger.info(f"Successfully fetched {len(appointment_list)} appointments for doctor: {current_user.id}")
+        return appointment_list
+    except HTTPException as http_exc:
+        logger.error(f"HTTP error: {str(http_exc.detail)}")
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Error fetching appointments: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+    print(f"Fetching appointments for doctor: {current_user.id}")
+    try:
+        # Verify the user is a doctor
+        if current_user.role != UserRole.DOCTOR:
+            raise HTTPException(status_code=403, detail="Only doctors can view their appointments")
+
+        # Fetch all appointments where the doctor matches the current user
+        appointments = await Appointment.find(Appointment.doctor.id == current_user.id).to_list()
+
+        # Transform appointments for response
+        appointment_list = []
+        for appointment in appointments:
+            appointment_dict = {
+                "appointment_id": str(appointment.id),
+                "doctor_id": str(appointment.doctor.id),
+                "patient_id": str(appointment.patient.id),
+                "time_slot": appointment.time_slot.dict() if hasattr(appointment.time_slot, "dict") else appointment.time_slot,
+                "payment_method": appointment.payment_status,  # Assuming payment_status aligns with your booking logic
+                "status": appointment.status.value,
+                "created_at": appointment.created_at,
+            }
+            appointment_list.append(appointment_dict)
+
+        return appointment_list
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        print(f"Error fetching appointments: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @router.post("/book")
 async def book_appointment(

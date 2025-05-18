@@ -16,6 +16,10 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 client = AsyncIOMotorClient(MONGODB_URI)
 db = client["medisched_db"]
 
+User.model_rebuild()
+DoctorDetails.model_rebuild()
+Appointment.model_rebuild()
+Message.model_rebuild()
 
 async def connect_to_mongo():
     await init_beanie(

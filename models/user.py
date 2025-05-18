@@ -3,12 +3,10 @@ from pydantic import EmailStr
 from enum import Enum
 from typing import Optional
 
-
 class UserRole(str, Enum):
     PATIENT = "patient"
     DOCTOR = "doctor"
     ADMIN = "admin"
-
 
 class User(Document):
     full_name: str

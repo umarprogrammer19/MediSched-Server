@@ -122,10 +122,22 @@ async def get_doctor_profile(id: str):
         "role": user.role,
         "doctor_details": user.doctor_details.dict(),
     }
-
+ 
 @router.get("/", response_model=List[UserResponse])
 async def get_all_doctors():
     doctors = await User.find(User.role == UserRole.DOCTOR, fetch_links=True).to_list()
     if not doctors:
         raise HTTPException(status_code=404, detail="No doctors found")
-    return [UserResponse.from_orm(doctor) for doctor in doctors]
+    return [
+        UserResponse(
+            **{
+                **doctor.dict(),
+                "id": str(doctor.id),
+                "doctor_details": {
+                    **(doctor.doctor_details.dict() if doctor.doctor_details else {}),
+                    "user": str(doctor.doctor_details.user.id) if doctor.doctor_details and doctor.doctor_details.user else None
+                } if doctor.doctor_details else None
+            }
+        )
+        for doctor in doctors
+    ]

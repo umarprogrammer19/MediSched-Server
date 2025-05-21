@@ -15,7 +15,7 @@ class TimeSlot(BaseModel):
     is_booked: bool
 
 class DoctorDetailsResponse(BaseModel):
-    user: Optional[str] = None  # Use string for user ID to avoid nested UserResponse
+    user: Optional[str] = None 
     father_name: str
     gender: str
     country: str

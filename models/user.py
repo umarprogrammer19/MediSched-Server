@@ -16,7 +16,7 @@ class User(Document):
     role: UserRole = UserRole.PATIENT
     is_verified: bool = False
     doctor_request_pending: bool = False
-    doctor_details: Optional[Link["DoctorDetails"]] = None
+    doctor_details: Optional[Link["DoctorDetails"]] = None # type: ignore
 
     class Settings:
         name = "users"

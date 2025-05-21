@@ -9,7 +9,7 @@ class TimeSlot(BaseModel):
     is_booked: bool = False
 
 class DoctorDetails(Document):
-    user: Link["User"]
+    user: Link["User"] # type: ignore
     father_name: str
     gender: str
     country: str

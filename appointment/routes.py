@@ -19,20 +19,23 @@ router = APIRouter(prefix="/appointment")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/appointment")
 
 @router.get("/current", response_model=list[dict])
-async def get_all_appointments_for_doctor(current_user: User = Depends(get_current_user)):
-    logger.info(f"Fetching appointments for doctor: {current_user.id}")
+async def get_all_appointments_for_doctor(
+    current_user: User = Depends(get_current_user),
+):
     try:
         # Verify the user is a doctor
         if current_user.role != UserRole.DOCTOR:
-            raise HTTPException(status_code=403, detail="Only doctors can view their appointments")
+            raise HTTPException(
+                status_code=403, detail="Only doctors can view their appointments"
+            )
 
         # Fetch appointments with linked documents (doctor and patient)
         appointments = await Appointment.find(
-            Appointment.doctor.id == ObjectId(current_user.id),  # Compare ObjectId directly
-            fetch_links=True  # Fetch the linked doctor and patient documents
+            Appointment.doctor.id
+            == ObjectId(current_user.id),  
+            fetch_links=True,  
         ).to_list()
 
         # Transform appointments for response
@@ -42,14 +45,21 @@ async def get_all_appointments_for_doctor(current_user: User = Depends(get_curre
                 "appointment_id": str(appointment.id),
                 "doctor_id": str(appointment.doctor.id),
                 "patient_id": str(appointment.patient.id),
-                "time_slot": appointment.time_slot.dict() if hasattr(appointment.time_slot, "dict") else appointment.time_slot,
-                "payment_method": appointment.payment_status,
+                "patient_details": {
+                    "full_name": appointment.patient.full_name,
+                    "email": appointment.patient.email,
+                    "phone_number": appointment.patient.phone_number,
+                },
+                "time_slot": (
+                    appointment.time_slot.dict()
+                    if hasattr(appointment.time_slot, "dict")
+                    else appointment.time_slot
+                ),
+                "payment_status": appointment.payment_status,
                 "status": appointment.status.value,
                 "created_at": appointment.created_at,
             }
             appointment_list.append(appointment_dict)
-
-        logger.info(f"Successfully fetched {len(appointment_list)} appointments for doctor: {current_user.id}")
         return appointment_list
     except HTTPException as http_exc:
         logger.error(f"HTTP error: {str(http_exc.detail)}")
@@ -57,53 +67,19 @@ async def get_all_appointments_for_doctor(current_user: User = Depends(get_curre
     except Exception as e:
         logger.error(f"Error fetching appointments: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-    print(f"Fetching appointments for doctor: {current_user.id}")
-    try:
-        # Verify the user is a doctor
-        if current_user.role != UserRole.DOCTOR:
-            raise HTTPException(status_code=403, detail="Only doctors can view their appointments")
-
-        # Fetch all appointments where the doctor matches the current user
-        appointments = await Appointment.find(Appointment.doctor.id == current_user.id).to_list()
-
-        # Transform appointments for response
-        appointment_list = []
-        for appointment in appointments:
-            appointment_dict = {
-                "appointment_id": str(appointment.id),
-                "doctor_id": str(appointment.doctor.id),
-                "patient_id": str(appointment.patient.id),
-                "time_slot": appointment.time_slot.dict() if hasattr(appointment.time_slot, "dict") else appointment.time_slot,
-                "payment_method": appointment.payment_status,  # Assuming payment_status aligns with your booking logic
-                "status": appointment.status.value,
-                "created_at": appointment.created_at,
-            }
-            appointment_list.append(appointment_dict)
-
-        return appointment_list
-    except HTTPException as http_exc:
-        raise http_exc
-    except Exception as e:
-        print(f"Error fetching appointments: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/book")
 async def book_appointment(
     doctor_id: str,
     time_slot: TimeSlot,
-    payment_method: str,  # "online" or "live"
+    payment_method: str,  
     current_user: User = Depends(get_current_user),
 ):
-    # Debug: Print the received doctor_id and current_user
-    print(f"Received doctor_id: {doctor_id}")
-    print(f"Current user ID: {current_user.id if current_user else 'None'}")
 
-    # Validate doctor_id format
     if not ObjectId.is_valid(doctor_id):
         raise HTTPException(status_code=400, detail="Invalid doctor ID format")
 
-    # Check if the user is a patient
     if current_user.role != UserRole.PATIENT:
         raise HTTPException(
             status_code=403, detail="Only patients can book appointments"
@@ -156,35 +132,51 @@ async def book_appointment(
         "msg": "Appointment booked successfully",
         "appointment_id": str(appointment.id),
     }
-    
+
+
 @router.delete("/{appointment_id}/cancel")
 async def cancel_appointment(
-    appointment_id: str,
-    current_user: str = Depends(get_current_user)
+    appointment_id: str, current_user: User = Depends(get_current_user)
 ):
-    appointment = await Appointment.find_one(Appointment.id == appointment_id, fetch_links=True)
+    appointment = await Appointment.find_one(
+        Appointment.id == appointment_id, fetch_links=True
+    )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
-    patient = await User.find_one(User.id == current_user)
+    patient = await User.find_one(User.id == current_user.id)
     if patient.role != UserRole.PATIENT or appointment.patient.id != patient.id:
-        raise HTTPException(status_code=403, detail="Not authorized to cancel this appointment")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to cancel this appointment"
+        )
 
-    if appointment.status not in [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED]:
+    if appointment.status not in [
+        AppointmentStatus.PENDING,
+        AppointmentStatus.CONFIRMED,
+    ]:
         raise HTTPException(status_code=400, detail="Cannot cancel this appointment")
 
     appointment.status = AppointmentStatus.CANCELED
     await appointment.save()
 
     # Free up the doctor's time slot
-    doctor_details = await DoctorDetails.find_one(DoctorDetails.user.id == appointment.doctor.id)
+    doctor_details = await DoctorDetails.find_one(
+        DoctorDetails.user.id == appointment.doctor.id
+    )
     for slot in doctor_details.available_time_slots:
-        if slot.day == appointment.time_slot.day and slot.start_time == appointment.time_slot.start_time:
+        if (
+            slot.day == appointment.time_slot.day
+            and slot.start_time == appointment.time_slot.start_time
+        ):
             slot.is_booked = False
     await doctor_details.save()
 
-    send_appointment_update_email(appointment.patient.email, "Appointment Canceled", appointment)
-    send_appointment_update_email(appointment.doctor.email, "Appointment Canceled by Patient", appointment)
+    send_appointment_update_email(
+        appointment.patient.email, "Appointment Canceled", appointment
+    )
+    send_appointment_update_email(
+        appointment.doctor.email, "Appointment Canceled by Patient", appointment
+    )
 
     return {"msg": "Appointment canceled successfully"}
 
@@ -193,35 +185,56 @@ async def cancel_appointment(
 async def reschedule_appointment(
     appointment_id: str,
     new_time_slot: TimeSlot,
-    current_user: str = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    appointment = await Appointment.find_one(Appointment.id == appointment_id, fetch_links=True)
+    appointment = await Appointment.find_one(
+        Appointment.id == appointment_id, fetch_links=True
+    )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
-    patient = await User.find_one(User.id == current_user)
+    patient = await User.find_one(User.id == current_user.id)
     if patient.role != UserRole.PATIENT or appointment.patient.id != patient.id:
-        raise HTTPException(status_code=403, detail="Not authorized to reschedule this appointment")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to reschedule this appointment"
+        )
 
-    if appointment.status not in [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED]:
-        raise HTTPException(status_code=400, detail="Cannot reschedule this appointment")
+    if appointment.status not in [
+        AppointmentStatus.PENDING,
+        AppointmentStatus.CONFIRMED,
+    ]:
+        raise HTTPException(
+            status_code=400, detail="Cannot reschedule this appointment"
+        )
 
-    doctor_details = await DoctorDetails.find_one(DoctorDetails.user.id == appointment.doctor.id)
-    available_slots = [slot for slot in doctor_details.available_time_slots 
-                       if not slot.is_booked and slot.day == new_time_slot.day 
-                       and slot.start_time == new_time_slot.start_time]
+    doctor_details = await DoctorDetails.find_one(
+        DoctorDetails.user.id == appointment.doctor.id
+    )
+    available_slots = [
+        slot
+        for slot in doctor_details.available_time_slots
+        if not slot.is_booked
+        and slot.day == new_time_slot.day
+        and slot.start_time == new_time_slot.start_time
+    ]
 
     if not available_slots:
         raise HTTPException(status_code=400, detail="New time slot not available")
 
     # Free the old time slot
     for slot in doctor_details.available_time_slots:
-        if slot.day == appointment.time_slot.day and slot.start_time == appointment.time_slot.start_time:
+        if (
+            slot.day == appointment.time_slot.day
+            and slot.start_time == appointment.time_slot.start_time
+        ):
             slot.is_booked = False
 
     # Book the new time slot
     for slot in doctor_details.available_time_slots:
-        if slot.day == new_time_slot.day and slot.start_time == new_time_slot.start_time:
+        if (
+            slot.day == new_time_slot.day
+            and slot.start_time == new_time_slot.start_time
+        ):
             slot.is_booked = True
 
     appointment.time_slot = new_time_slot
@@ -229,24 +242,31 @@ async def reschedule_appointment(
     await appointment.save()
     await doctor_details.save()
 
-    send_appointment_update_email(appointment.patient.email, "Appointment Rescheduled", appointment)
-    send_appointment_update_email(appointment.doctor.email, "Appointment Rescheduled by Patient", appointment)
+    send_appointment_update_email(
+        appointment.patient.email, "Appointment Rescheduled", appointment
+    )
+    send_appointment_update_email(
+        appointment.doctor.email, "Appointment Rescheduled by Patient", appointment
+    )
 
     return {"msg": "Appointment rescheduled successfully"}
 
 
 @router.put("/{appointment_id}/confirm")
 async def confirm_appointment(
-    appointment_id: str,
-    current_user: str = Depends(get_current_user)
+    appointment_id: str, current_user: User = Depends(get_current_user)
 ):
-    appointment = await Appointment.find_one(Appointment.id == appointment_id, fetch_links=True)
+    appointment = await Appointment.find_one(
+        Appointment.id == appointment_id, fetch_links=True
+    )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
-    doctor = await User.find_one(User.id == current_user)
+    doctor = await User.find_one(User.id == current_user.id)
     if doctor.role != UserRole.DOCTOR or appointment.doctor.id != doctor.id:
-        raise HTTPException(status_code=403, detail="Not authorized to confirm this appointment")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to confirm this appointment"
+        )
 
     if appointment.status != AppointmentStatus.PENDING:
         raise HTTPException(status_code=400, detail="Appointment cannot be confirmed")
@@ -254,23 +274,31 @@ async def confirm_appointment(
     appointment.status = AppointmentStatus.CONFIRMED
     await appointment.save()
 
-    send_appointment_update_email(appointment.patient.email, "Appointment Confirmed", appointment)
-    send_appointment_update_email(appointment.doctor.email, "You confirmed an appointment", appointment)
+    send_appointment_update_email(
+        appointment.patient.email, "Appointment Confirmed", appointment
+    )
+    send_appointment_update_email(
+        appointment.doctor.email, "You confirmed an appointment", appointment
+    )
 
     return {"msg": "Appointment confirmed successfully"}
 
+
 @router.put("/{appointment_id}/reject")
 async def reject_appointment(
-    appointment_id: str,
-    current_user: str = Depends(get_current_user)
+    appointment_id: str, current_user: User = Depends(get_current_user)
 ):
-    appointment = await Appointment.find_one(Appointment.id == appointment_id, fetch_links=True)
+    appointment = await Appointment.find_one(
+        Appointment.id == appointment_id, fetch_links=True
+    )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
-    doctor = await User.find_one(User.id == current_user)
+    doctor = await User.find_one(User.id == current_user.id)
     if doctor.role != UserRole.DOCTOR or appointment.doctor.id != doctor.id:
-        raise HTTPException(status_code=403, detail="Not authorized to reject this appointment")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to reject this appointment"
+        )
 
     if appointment.status != AppointmentStatus.PENDING:
         raise HTTPException(status_code=400, detail="Appointment cannot be rejected")
@@ -279,13 +307,22 @@ async def reject_appointment(
     await appointment.save()
 
     # Free up the time slot
-    doctor_details = await DoctorDetails.find_one(DoctorDetails.user.id == appointment.doctor.id)
+    doctor_details = await DoctorDetails.find_one(
+        DoctorDetails.user.id == appointment.doctor.id
+    )
     for slot in doctor_details.available_time_slots:
-        if slot.day == appointment.time_slot.day and slot.start_time == appointment.time_slot.start_time:
+        if (
+            slot.day == appointment.time_slot.day
+            and slot.start_time == appointment.time_slot.start_time
+        ):
             slot.is_booked = False
     await doctor_details.save()
 
-    send_appointment_update_email(appointment.patient.email, "Appointment Rejected", appointment)
-    send_appointment_update_email(appointment.doctor.email, "You rejected an appointment", appointment)
+    send_appointment_update_email(
+        appointment.patient.email, "Appointment Rejected", appointment
+    )
+    send_appointment_update_email(
+        appointment.doctor.email, "You rejected an appointment", appointment
+    )
 
     return {"msg": "Appointment rejected successfully"}

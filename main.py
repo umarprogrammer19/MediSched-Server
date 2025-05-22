@@ -25,7 +25,7 @@ app.add_middleware(
 async def startup():
     await connect_to_mongo()
 
-
+# All Routes Setup
 app.include_router(auth_router, prefix="/api", tags=["auth"])
 app.include_router(doctor_router, prefix="/api", tags=["doctor"])
 app.include_router(admin_router, prefix="/api", tags=["admin"])
